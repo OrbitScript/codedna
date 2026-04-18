@@ -1,0 +1,6 @@
+# CodeDNA has zero external dependencies.
+# Requires Python 3.7+ and uses only the standard library.
+#
+# stdlib modules used:
+#   os, sys, re, json, math, time, shutil, hashlib,
+#   argparse, datetime, random, pathlib, collections

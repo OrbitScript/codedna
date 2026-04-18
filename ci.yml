@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.10", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Verify zero external dependencies
+      run: |
+        python -c "
+        import ast
+        stdlib = {'os','sys','re','json','math','time','shutil','hashlib',
+                  'argparse','datetime','random','pathlib','collections'}
+        with open('codedna.py') as f:
+            tree = ast.parse(f.read())
+        imports = [n.names[0].name.split('.')[0] for n in ast.walk(tree) if isinstance(n, ast.Import)]
+        imports += [n.module.split('.')[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module]
+        third_party = [i for i in imports if i not in stdlib]
+        assert not third_party, f'Unexpected third-party imports: {third_party}'
+        print('✅ Zero external dependencies confirmed')
+        "
+
+    - name: Run help command
+      run: python codedna.py --help
+
+    - name: Scan self (dogfood test)
+      run: |
+        python codedna.py . --no-dna
+        echo "✅ Self-scan passed"
+
+    - name: Scan with export
+      run: |
+        python codedna.py . --export
+        ls codedna_*.json
+        echo "✅ JSON export passed"
+
+    - name: Validate JSON export
+      run: |
+        python -c "
+        import json, glob
+        files = glob.glob('codedna_*.json')
+        assert files, 'No JSON export found'
+        with open(files[0]) as f:
+            data = json.load(f)
+        required = ['fingerprint', 'archetype', 'total_lines', 'total_files', 'languages']
+        for key in required:
+            assert key in data, f'Missing key: {key}'
+        print(f'✅ JSON valid — fingerprint: {data[\"fingerprint\"]}')
+        "
